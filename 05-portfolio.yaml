@@ -1,0 +1,186 @@
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaUser
+metadata:
+  name: portfolio-viewer
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Write
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Create
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Describe
+---
+
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaUser
+metadata:
+  name: trade-aggregator
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Write
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Create
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Describe
+    - resource:
+        type: topic
+        name: trades
+      operation: Read
+    - resource:
+        type: topic
+        name: trades
+      operation: Describe
+    - resource:
+        type: group
+        name: trades
+      operation: Read
+---
+
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaTopic
+metadata:
+  name: portfolio
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.bytes: 107374182
+    retention.ms: 86400000
+    segment.bytes: 107374182
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: portfolio-viewer
+  name: portfolio-viewer
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: portfolio-viewer
+    spec:
+      containers:
+      - name: portfolio-viewer
+        image: scholzj/share-portfolio-viewer:latest
+        env:
+        - name: CA_CRT
+          valueFrom:
+            secretKeyRef:
+              name: my-cluster-cluster-ca-cert
+              key: ca.crt
+        - name: USER_CRT
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-viewer
+              key: user.crt
+        - name: USER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-viewer
+              key: user.key
+        - name: BOOTSTRAP_SERVERS
+          value: my-cluster-kafka-bootstrap.amq-streams.svc:9093
+        - name: TOPIC
+          value: portfolio
+        - name: GROUP_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: portfolio-viewer
+  labels:
+    app: portfolio-viewer
+spec:
+  type: ClusterIP
+  ports:
+   - name: http
+     port: 8080
+  selector:
+    app: portfolio-viewer
+---
+
+apiVersion: v1
+kind: Route
+metadata:
+  name: portfolio-viewer
+  labels:
+    app: portfolio-viewer
+spec:
+  to:
+    kind: Service
+    name: portfolio-viewer
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: trade-aggregator
+  name: trade-aggregator
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: trade-aggregator
+    spec:
+      containers:
+      - name: trade-aggregator
+        image: scholzj/share-position-aggregator:latest
+        env:
+        - name: CA_CRT
+          valueFrom:
+            secretKeyRef:
+              name: my-cluster-cluster-ca-cert
+              key: ca.crt
+        - name: USER_CRT
+          valueFrom:
+            secretKeyRef:
+              name: share-trade-aggregator
+              key: user.crt
+        - name: USER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: share-trade-aggregator
+              key: user.key
+        - name: BOOTSTRAP_SERVERS
+          value: my-cluster-kafka-bootstrap.amq-streams.svc:9093
+        - name: SOURCE_TOPIC
+          value: trades
+        - name: TARGET_TOPIC
+          value: portfolio

@@ -1,0 +1,196 @@
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaUser
+metadata:
+  name: priced-portfolio-viewer
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+    - resource:
+        type: topic
+        name: priced-portfolio
+      operation: Write
+    - resource:
+        type: topic
+        name: priced-portfolio
+      operation: Create
+    - resource:
+        type: topic
+        name: priced-portfolio
+      operation: Describe
+---
+
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaUser
+metadata:
+  name: pricer
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+    - resource:
+        type: topic
+        name: priced-portfolio
+      operation: Write
+    - resource:
+        type: topic
+        name: priced-portfolio
+      operation: Create
+    - resource:
+        type: topic
+        name: priced-portfolio
+      operation: Describe
+    - resource:
+        type: topic
+        name: prices
+      operation: Read
+    - resource:
+        type: topic
+        name: prices
+      operation: Describe
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Read
+    - resource:
+        type: topic
+        name: portfolio
+      operation: Describe
+    - resource:
+        type: group
+        name: pricer
+      operation: Read
+---
+
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaTopic
+metadata:
+  name: priced-portfolio
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    retention.bytes: 107374182
+    retention.ms: 86400000
+    segment.bytes: 107374182
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: priced-portfolio-viewer
+  name: priced-portfolio-viewer
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: priced-portfolio-viewer
+    spec:
+      containers:
+      - name: priced-portfolio-viewer
+        image: scholzj/share-priced-portfolio-viewer:latest
+        env:
+        - name: CA_CRT
+          valueFrom:
+            secretKeyRef:
+              name: my-cluster-cluster-ca-cert
+              key: ca.crt
+        - name: USER_CRT
+          valueFrom:
+            secretKeyRef:
+              name: priced-portfolio-viewer
+              key: user.crt
+        - name: USER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: priced-portfolio-viewer
+              key: user.key
+        - name: BOOTSTRAP_SERVERS
+          value: my-cluster-kafka-bootstrap.amq-streams.svc:9093
+        - name: TOPIC
+          value: priced-portfolio
+        - name: GROUP_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: priced-portfolio-viewer
+  labels:
+    app: priced-portfolio-viewer
+spec:
+  type: ClusterIP
+  ports:
+   - name: http
+     port: 8080
+  selector:
+    app: priced-portfolio-viewer
+---
+
+apiVersion: v1
+kind: Route
+metadata:
+  name: priced-portfolio-viewer
+  labels:
+    app: priced-portfolio-viewer
+spec:
+  to:
+    kind: Service
+    name: priced-portfolio-viewer
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: pricer
+  name: pricer
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: pricer
+    spec:
+      containers:
+      - name: pricer
+        image: scholzj/share-pricer:latest
+        env:
+        - name: CA_CRT
+          valueFrom:
+            secretKeyRef:
+              name: my-cluster-cluster-ca-cert
+              key: ca.crt
+        - name: USER_CRT
+          valueFrom:
+            secretKeyRef:
+              name: pricer
+              key: user.crt
+        - name: USER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: pricer
+              key: user.key
+        - name: BOOTSTRAP_SERVERS
+          value: my-cluster-kafka-bootstrap.amq-streams.svc:9093
+        - name: LEFT_SOURCE_TOPIC
+          value: portfolio
+        - name: RIGHT_SOURCE_TOPIC
+          value: prices
+        - name: TARGET_TOPIC
+          value: priced-portfolio
