@@ -2,7 +2,7 @@
 
 This demo shows deployment of AMQ Streams 1.1 on OpenShift togerther with a simple demo application which demonstrates different common patterns used with Apache Kafka.
 
-The Java source codes for the demo can be found [here](http://todo).
+The Java source codes for the demo can be found [here](https://github.com/scholzj/kafka-shares-demo).
 
 ## Create Projects / namespaces
 
@@ -62,11 +62,6 @@ oc apply -f 03-price-feed.yaml -n amq-streams-demo
 
 The trade manager will let you enter trades.
 
-* Switch to the project `amq-streams-demo`
-```
-oc project amq-streams-demo
-```
-
 * Deploy the price feed generator and a simple UI for monitoring the prices
 ```
 oc apply -f 04-trade-manager.yaml -n amq-streams-demo
@@ -79,11 +74,6 @@ oc apply -f 04-trade-manager.yaml -n amq-streams-demo
 The portfolio aggregator will take the trades you created and aggregate them into a portfolio. 
 A portfolio will give you a clear view of what you own.
 
-* Switch to the project `amq-streams-demo`
-```
-oc project amq-streams-demo
-```
-
 * Deploy the price feed generator and a simple UI for monitoring the prices
 ```
 oc apply -f 05-portfolio.yaml -n amq-streams-demo
@@ -95,11 +85,6 @@ oc apply -f 05-portfolio.yaml -n amq-streams-demo
 
 The pricer will price the portfolio. 
 It will join the stream with prices with the stream with portfolios and tell you how much are the positions in your portfolio worth.
-
-* Switch to the project `amq-streams-demo`
-```
-oc project amq-streams-demo
-```
 
 * Deploy the price feed generator and a simple UI for monitoring the prices
 ```

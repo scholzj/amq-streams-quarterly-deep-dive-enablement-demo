@@ -171,12 +171,12 @@ spec:
         - name: USER_CRT
           valueFrom:
             secretKeyRef:
-              name: share-trade-aggregator
+              name: trade-aggregator
               key: user.crt
         - name: USER_KEY
           valueFrom:
             secretKeyRef:
-              name: share-trade-aggregator
+              name: trade-aggregator
               key: user.key
         - name: BOOTSTRAP_SERVERS
           value: my-cluster-kafka-bootstrap.amq-streams.svc:9093
