@@ -1,0 +1,180 @@
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaUser
+metadata:
+  name: my-connect
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  authentication:
+    type: tls
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret1
+type: Opaque
+data:
+  accessKey: QUtJQVhYWFhYWFhYWFhYWFg=
+  secretAccessKey: Ylhsd1lYTnpkMjl5WkE=
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret2
+type: Opaque
+data:
+  username: bXl1c2Vy
+  password: bXlwYXNzd29yZA==
+---
+
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaUser
+metadata:
+  name: price-viewer
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+    - resource:
+        type: topic
+        name: prices
+      operation: Write
+    - resource:
+        type: topic
+        name: prices
+      operation: Create
+    - resource:
+        type: topic
+        name: prices
+      operation: Describe
+---
+
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaTopic
+metadata:
+  name: prices
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+      retention.bytes: 107374182
+      retention.ms: 86400000
+      segment.bytes: 107374182
+---
+
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaConnect
+metadata:
+  name: my-connect-cluster
+  labels:
+    app: price-feed-connector
+spec:
+  image: scholzj/share-price-feed-connector:latest
+  version: 2.1.1
+  replicas: 1
+  bootstrapServers: my-cluster-kafka-bootstrap.amq-streams.svc:9093
+  tls:
+    trustedCertificates:
+      - secretName: my-cluster-cluster-ca-cert
+        certificate: ca.crt
+  metrics:
+    lowercaseOutputName: true
+  authentication:
+    type: tls
+    certificateAndKey:
+      secretName: my-connect
+      certificate: user.crt
+      key: user.key
+  externalConfiguration:
+    env:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: secret1
+          key: accessKey
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: secret1
+          key: secretAccessKey
+    volumes:
+    - name: my-secret2
+      secret:
+        secretName: secret2
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: price-viewer
+  name: price-viewer
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: price-viewer
+    spec:
+      containers:
+      - name: price-viewer
+        image: scholzj/share-price-viewer:latest
+        env:
+        - name: CA_CRT
+          valueFrom:
+            secretKeyRef:
+              name: my-cluster-cluster-ca-cert
+              key: ca.crt
+        - name: USER_CRT
+          valueFrom:
+            secretKeyRef:
+              name: price-viewer
+              key: user.crt
+        - name: USER_KEY
+          valueFrom:
+            secretKeyRef:
+              name: price-viewer
+              key: user.key
+        - name: BOOTSTRAP_SERVERS
+          value: my-cluster-kafka-bootstrap.amq-streams.svc:9093
+        - name: TOPIC
+          value: prices
+        - name: GROUP_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: price-viewer
+  labels:
+    app: price-viewer
+spec:
+  type: ClusterIP
+  ports:
+   - name: http
+     port: 8080
+  selector:
+    app: price-viewer
+---
+
+apiVersion: v1
+kind: Route
+metadata:
+  name: price-viewer
+  labels:
+    app: price-viewer
+spec:
+  to:
+    kind: Service
+    name: price-viewer
