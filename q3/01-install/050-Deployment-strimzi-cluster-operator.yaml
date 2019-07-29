@@ -13,8 +13,6 @@ spec:
         strimzi.io/kind: cluster-operator
     spec:
       serviceAccountName: strimzi-cluster-operator
-      imagePullSecrets:
-        - name: redhat-registry-login
       containers:
       - name: strimzi-cluster-operator
         image: registry.redhat.io/amq7/amq-streams-operator:1.2.0
@@ -64,8 +62,6 @@ spec:
           value: registry.redhat.io/amq7/amq-streams-bridge:1.2.0
         - name: STRIMZI_LOG_LEVEL
           value: INFO
-        - name: STRIMZI_IMAGE_PULL_SECRETS
-          value: redhat-registry-login
         livenessProbe:
           httpGet:
             path: /healthy

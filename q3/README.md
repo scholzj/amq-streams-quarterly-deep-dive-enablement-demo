@@ -116,7 +116,8 @@ _This step has to be executed only in environments which support storage resizin
 ```sh
 curl -X POST $BRIDGE/topics/my-topic \
   -H 'content-type: application/vnd.kafka.json.v2+json' \
-  -d '{"records":[{"key":"message-key","value":"message-value"}]}'
+  -d '{"records":[{"key":"message-key","value":"message-value"}]}' \
+  | jq
 ```
 
 ### Receiving messages
@@ -132,7 +133,8 @@ curl -X POST $BRIDGE/consumers/my-group \
     "enable.auto.commit": "false",
     "fetch.min.bytes": "512",
     "consumer.request.timeout.ms": "30000"
-  }'
+  }' \
+  | jq
 ```
 
 * Then we need to subscribe the consumer to the topics it should receive from
@@ -145,8 +147,32 @@ curl -X POST $BRIDGE/consumers/my-group/instances/consumer1/subscription \
 * And then we can consume the messages (can be called repeatedly - e.g. in a loop)
 ```sh
 curl -X GET $BRIDGE/consumers/my-group/instances/consumer1/records \
-  -H 'accept: application/vnd.kafka.json.v2+json'
+  -H 'accept: application/vnd.kafka.json.v2+json' \
+  | jq
 ```
+
+### Combining with Kafka clients
+
+* You can of course also combine the HTTP Bridge clients with the Kafka clients
+* Consume the messages set through the HTTP Bridge using the `kafka-console-consumer`:
+```sh
+oc run kafka-consumer -ti --image=registry.redhat.io/amq7/amq-streams-kafka-22:1.2.0 --rm=true --restart=Never -- bin/kafka-console-consumer.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --topic my-topic --from-beginning
+``` 
+
+* Or produce messages using the `kafka-console-producer` and consume them with the HTTP Bridge:
+  * Remember to send valid JSON messages
+```sh
+oc run kafka-producer -ti --image=registry.redhat.io/amq7/amq-streams-kafka-22:1.2.0 --rm=true --restart=Never -- bin/kafka-console-producer.sh --broker-list my-cluster-kafka-bootstrap:9092 --topic my-topic
+```
+
+### Committing the messages
+
+* At the end we should close the consumer
+```sh
+curl -X POST $BRIDGE/consumers/my-group/instances/consumer1/offsets
+```
+
+### Closing the consumer
 
 * At the end we should close the consumer
 ```sh
